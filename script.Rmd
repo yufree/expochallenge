@@ -132,7 +132,7 @@ dev.off()
 
 # Gene
 
-```{r}
+```{r eval=FALSE}
 load("data/exposome.RData")
 load("data/genexpr.Rdata")
 
@@ -149,7 +149,7 @@ phenotype <- phenotype[match(pds$ID,phenotype$ID),]
 
 # Gatekeeper Discovery
 
-```{r}
+```{r eval=FALSE}
 # remotes::install_github('yufree/enet')
 library(enet)
 # check correlation among exposure
@@ -169,7 +169,7 @@ gkidx <- sapply(re$data, function(x) dim(x)[2]==4)
 edsgk <- eds[gkidx,]
 ```
 
-```{r}
+```{r eval=FALSE}
 exposome <- exposome[match(pdu$ID,exposome$ID),]
 # only use numeric vairable
 row <- sapply(exposome, is.numeric)
@@ -239,7 +239,7 @@ write.csv(edsgk,file = 'genegk.csv')
 257 peaks connected with other peaks and exposures
 4033 peaks connected with exposures only
 
-```{r}
+```{r eval=FALSE}
 x <- genefilter::rowttests(edsgk,factor(phenotype$hs_asthma))
 xx <- genefilter::rowttests(eds,factor(phenotype$hs_asthma))
 xxx <- genefilter::rowttests(exp[-1,],factor(phenotype$hs_asthma))
