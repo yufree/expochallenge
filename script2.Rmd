@@ -1,0 +1,126 @@
+---
+title: "Exposome data analysis"
+author: "Miao Yu"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Import the data and transfer data format
+
+```{r}
+# data could be downloaded here: https://github.com/isglobal-brge/brgedata
+load("data/exposome.RData")
+load("data/metabol_serum.Rdata")
+
+library(Biobase)
+pds <- pData(metabol_serum)
+fds <- fData(metabol_serum)
+eds <- exprs(metabol_serum)
+exposome <- exposome[match(pds$ID,exposome$ID),]
+# only use numeric vairable
+row <- sapply(exposome, is.numeric)
+exp <- t(exposome[,row])
+phenotype <- phenotype[match(pds$ID,phenotype$ID),]
+```
+
+# Association between metabolits and exposures
+
+```{r}
+# remotes::install_github('yufree/enet')
+library(enet)
+# check correlation between metabolites and exposures
+re <- getemnet(exp(eds),exp[-1,])
+```
+
+# Association among metabolits
+
+```{r}
+library(ggnetwork)
+mnets <- getmmnet(eds)
+net <- igraph::graph_from_data_frame(mnets$net,directed = F)
+igraph::V(net)$membership <- igraph::components(net)$membership
+n <- ggnetwork(net)
+pm1 <- ggplot(n, aes(x = x, y = y, xend = xend, yend = yend)) +
+  geom_edges(color = "grey50",size=0.7) +
+  geom_nodes(aes(color = as.factor(membership))) +
+  guides(color=F,size=F) +
+  ggtitle('Serum Metabolites network') +
+  theme_blank()
+# +ggsave('mnec.png')
+pm1
+```
+
+# Gatekeeper Discovery
+
+```{r}
+# screen gatekeeper
+gkidx <- sapply(re$data, function(x) dim(x)[2]==4)
+edsgk <- eds[gkidx,]
+
+tb <- as.data.frame.matrix(re$me) 
+na <- rownames(tb)
+allme <- re$data[sapply(re$data, dim)[2,]==4]
+allmedf <- do.call(rbind,allme)
+allmedfm <- allmedf[allmedf$to%in%na,]
+sum(apply(table(allmedfm$from,allmedfm$to),1,sum)>1)
+# 12
+mname <- names(apply(table(allmedfm$from,allmedfm$to),1,sum)[apply(table(allmedfm$from,allmedfm$to),1,sum)>1])
+allmedf2 <- allmedf[allmedf$from %in% mname|allmedf$to %in% mname,]
+
+idxx <- paste(allmedf$from,allmedf$to,allmedf$direction)
+df <- allmedf[!duplicated(idxx),]
+df2 <- df[!df$from%in%df$from[df$from==df$to],]
+df3 <- df2[df2$to%in%na,]
+df4 <- df2[!df2$to%in%na,]
+df5 <- df4[df4$to %in% unique(df3$from)|df4$from %in% unique(df3$from),]
+df6 <- rbind.data.frame(df3,df5)
+gknamez <- df3$from
+library(network)
+net <- as.network(df6,loops = F,directed = F,matrix.type = 'edgelist')
+net %e% 'direction' <- df6$direction
+n <- ggnetwork(net)
+n$direction <- factor(n$direction,levels = c('positive','negative'))
+library(ggnetwork)
+p1 <- ggplot(n, aes(x = x, y = y, xend = xend, yend = yend)) +
+  geom_edges(color = "grey50",size=1,aes(linetype = direction)) +
+  geom_nodes(aes(size=2,shape=ifelse(vertex.names %in% gknamez,'square','circle'),color= ifelse(vertex.names %in% na,'black','blue'))) +
+  geom_nodelabel_repel(aes(label = ifelse(vertex.names %in% gknamez,vertex.names,NA)),
+                       fontface = "bold", box.padding = unit(1, "lines"))+
+  guides(size = FALSE,shape=F,color=F) +
+  theme_blank() 
+# +ggsave('menec.png')
+p1
+
+# png('upset.png',width = 2000,height = 1200,res = 300)
+tb <- as.data.frame.matrix(re$me) 
+na <- rownames(tb)
+tb <- tb[na%in%gknamez,]
+tb <- as.data.frame(t(tb))
+na <- rownames(tb)
+library(UpSetR)
+listinput <- list(`C16.1`=na[tb$log.C16.1==1],`C8`=na[tb$log.C8==1],`leu`=na[tb$log.Leu==1],`lysoPC.a.C26.1`=na[tb$log.lysoPC.a.C26.1==1],`lysoPC.a.C28.0`=na[tb$log.lysoPC.a.C28.0==1],`lysoPC.a.C28.1`=na[tb$log.lysoPC.a.C28.1==1],`PC.aa.C40.6`=na[tb$log.PC.aa.C40.6==1],`PC.ae.C36.3`=na[tb$log.PC.ae.C36.3==1],`PC.ae.C38.5`=na[tb$log.PC.ae.C38.5==1],`SM.C18.1`=na[tb$log.SM.C18.1], `Spermine`=na[tb$log.Spermine],`Val`=na[tb$log.Val])
+upset(fromList(listinput), order.by = "freq", nsets=12,mainbar.y.label = "Associated exposures(s)")
+# dev.off()
+```
+
+# Gatekeeper association with asthma
+
+```{r}
+x <- genefilter::rowttests(edsgk,factor(phenotype$hs_asthma))
+sum(x$p.value<0.05)
+df <- edsgk[rownames(edsgk) %in% rownames(x)[x$p.value<0.05],]
+
+# png('gka.png',width = 2000,height = 1000,res = 300)
+par(mar=c(4,2,4,0)+0.1,mfrow=c(1,3))
+boxplot(df[1,]~phenotype$hs_asthma,xlab='',ylab='',main='C14.1',xaxt='n')
+axis(1,at=c(1,2),labels = c('non-asthma','asthma'))
+boxplot(df[2,]~phenotype$hs_asthma,xlab='',ylab='',main='PC.ae.C38.5',xaxt='n')
+axis(1,at=c(1,2),labels = c('non-asthma','asthma'))
+boxplot(df[3,]~phenotype$hs_asthma,xlab='',ylab='',main='Val',xaxt='n')
+axis(1,at=c(1,2),labels = c('non-asthma','asthma'))
+# dev.off()
+```

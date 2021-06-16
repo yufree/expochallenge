@@ -1,14 +1,8 @@
 ---
-title: "A Multi-page HTML Document"
-author: "Miao Yu and Lauren Petrick"
+title: "Gatekeeper"
+author: "Miao Yu"
 date: "`r Sys.Date()`"
-output:
-  pagedown::html_paged:
-    toc: true
-    # change to true for a self-contained document, but it'll be a litte slower for Pandoc to render
-    self_contained: false
-# uncomment this line to produce HTML and PDF in RStudio:
-#knit: pagedown::chrome_print
+output: html_document
 ---
 
 ```{r setup, include=FALSE}
@@ -18,6 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 # Import the data and transfer data format
 
 ```{r}
+# data could be downloaded here: https://github.com/isglobal-brge/brgedata
 load("data/exposome.RData")
 load("data/metabol_serum.Rdata")
 
@@ -51,7 +46,9 @@ pm1 <- ggplot(n, aes(x = x, y = y, xend = xend, yend = yend)) +
   geom_nodes(aes(color = as.factor(membership))) +
   guides(color=F,size=F) +
   ggtitle('Serum Metabolites network') +
-  theme_blank()+ggsave('mnec.png')
+  theme_blank()
+# +ggsave('mnec.png')
+pm1
 
 # check correlation between metabolites and exposures
 re <- getemnet(exp(eds),exp[-1,])
@@ -93,9 +90,11 @@ p1 <- ggplot(n, aes(x = x, y = y, xend = xend, yend = yend)) +
   geom_nodelabel_repel(aes(label = ifelse(vertex.names %in% gknamez,vertex.names,NA)),
                        fontface = "bold", box.padding = unit(1, "lines"))+
   guides(size = FALSE,shape=F,color=F) +
-  theme_blank() +ggsave('menec.png')
+  theme_blank() 
+# +ggsave('menec.png')
+p1
 
-png('upset.png',width = 2000,height = 1200,res = 300)
+# png('upset.png',width = 2000,height = 1200,res = 300)
 tb <- as.data.frame.matrix(re$me) 
 na <- rownames(tb)
 tb <- tb[na%in%gknamez,]
@@ -103,8 +102,12 @@ tb <- as.data.frame(t(tb))
 na <- rownames(tb)
 library(UpSetR)
 listinput <- list(`C16.1`=na[tb$log.C16.1==1],`C8`=na[tb$log.C8==1],`leu`=na[tb$log.Leu==1],`lysoPC.a.C26.1`=na[tb$log.lysoPC.a.C26.1==1],`lysoPC.a.C28.0`=na[tb$log.lysoPC.a.C28.0==1],`lysoPC.a.C28.1`=na[tb$log.lysoPC.a.C28.1==1],`PC.aa.C40.6`=na[tb$log.PC.aa.C40.6==1],`PC.ae.C36.3`=na[tb$log.PC.ae.C36.3==1],`PC.ae.C38.5`=na[tb$log.PC.ae.C38.5==1],`SM.C18.1`=na[tb$log.SM.C18.1], `Spermine`=na[tb$log.Spermine],`Val`=na[tb$log.Val])
-upset(fromList(listinput), order.by = "freq", nsets=10,mainbar.y.label = "Associated exposures(s)")
-dev.off()
+upset(fromList(listinput), order.by = "freq", nsets=12,mainbar.y.label = "Associated exposures(s)")
+# dev.off()
+# 
+x <- apply(tb,1,sum)
+xx <- cbind.data.frame(name=names(x),num=x)
+zz <- merge(xx,codebook,by.x = 'name',by.y = 'variable_name')
 ```
 
 # Gatekeeper association with asthma
@@ -118,16 +121,16 @@ sum(xx$p.value<0.05)
 sum(xxx$p.value<0.05)
 
 df <- edsgk[rownames(edsgk) %in% rownames(x)[x$p.value<0.05],]
-library(vioplot)
-png('gka.png',width = 2000,height = 1000,res = 300)
+
+# png('gka.png',width = 2000,height = 1000,res = 300)
 par(mar=c(4,2,4,0)+0.1,mfrow=c(1,3))
-vioplot(df[1,]~phenotype$hs_asthma,xlab='',ylab='',main='C14.1',xaxt='n')
-axis(1,at=c(1,2),labels = c('health','asthma'))
-vioplot(df[2,]~phenotype$hs_asthma,xlab='',ylab='',main='PC.ae.C38.5',xaxt='n')
-axis(1,at=c(1,2),labels = c('health','asthma'))
-vioplot(df[3,]~phenotype$hs_asthma,xlab='',ylab='',main='Val',xaxt='n')
-axis(1,at=c(1,2),labels = c('health','asthma'))
-dev.off()
+boxplot(df[1,]~phenotype$hs_asthma,xlab='',ylab='',main='C14.1',xaxt='n')
+axis(1,at=c(1,2),labels = c('non-asthma','asthma'))
+boxplot(df[2,]~phenotype$hs_asthma,xlab='',ylab='',main='PC.ae.C38.5',xaxt='n')
+axis(1,at=c(1,2),labels = c('non-asthma','asthma'))
+boxplot(df[3,]~phenotype$hs_asthma,xlab='',ylab='',main='Val',xaxt='n')
+axis(1,at=c(1,2),labels = c('non-asthma','asthma'))
+# dev.off()
 ```
 
 # Gene
